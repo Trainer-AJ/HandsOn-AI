@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>MCP Chat</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+    /* Light theme defaults */
+    --card-bg: #ffffff;
+    --card-border: rgba(16,24,40,0.06);
+    --text: #0b1220;
+    --muted: rgba(11,18,32,0.6);
+    --user-bg: linear-gradient(90deg, rgba(102,126,234,0.12), rgba(118,75,162,0.12));
+    --bot-bg: rgba(0,0,0,0.06);
+    --button-bg: rgba(0,0,0,0.06);
+    --button-text: #0b1220;
+    --input-bg: rgba(11,18,32,0.04);
+    --input-border: rgba(11,18,32,0.06);
+    --loader-color: rgba(0,0,0,0.7);
+}
+
+/* Dark theme overrides applied when .dark class is on the .app element */
+.app.dark {
+    --card-bg: #0b1220;
+    --card-border: rgba(255,255,255,0.03);
+    --text: #e9eef8;
+    --muted: rgba(255,255,255,0.7);
+    --user-bg: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.04));
+    --bot-bg: rgba(255,255,255,0.03);
+    --button-bg: rgba(255,255,255,0.06);
+    --button-text: #e9eef8;
+    --input-bg: rgba(255,255,255,0.02);
+    --input-border: rgba(255,255,255,0.04);
+    --loader-color: rgba(255,255,255,0.85);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    background: linear-gradient(270deg,#667eea,#764ba2,#ff7a7a,#ffd56b);
+    background-size: 800% 800%;
+    animation: gradientShift 12s ease infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+@keyframes gradientShift {
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+
+.app {
+    background: var(--card-bg);
+    color: var(--text);
+    width: 100%;
+    max-width: 700px;
+    height: 85vh;
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--card-border);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+    transition: background 250ms ease, color 250ms ease, border-color 250ms ease;
+}
+
+header {
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+}
+
+.chat {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+    overflow-x: hidden; /* prevent horizontal scrolling */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bubble {
+    max-width: 86%;
+    padding: 14px 18px;
+    border-radius: 14px;
+    margin: 0 auto; /* center the bubble */
+    white-space: pre-wrap;
+    text-align: center; /* center text for short messages */
+    word-break: break-word;
+    font-size: 15px;
+}
+
+/* Markdown inside bubbles should be left-aligned for readability */
+.bubble .markdown {
+    text-align: left;
+    color: var(--text);
+}
+.bubble .markdown pre {
+    background: rgba(0,0,0,0.06);
+    padding: 12px;
+    border-radius: 8px;
+    overflow: auto;
+}
+.bubble .markdown code { background: rgba(0,0,0,0.04); padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; }
+.bubble .markdown a { color: #7fb4ff; text-decoration: underline; }
+
+.user {
+    background: var(--user-bg);
+    color: var(--text);
+    align-self: center;
+}
+
+.bot {
+    background: var(--bot-bg);
+    color: var(--text);
+}
+
+footer {
+    padding: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+textarea {
+    flex: 1;
+    resize: none;
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 46px;
+    background: var(--input-bg);
+    color: var(--text);
+    border: 1px solid var(--input-border);
+}
+
+button {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    background: var(--button-bg);
+    color: var(--button-text);
+}
+
+.mcp {
+    font-size: 13px;
+    opacity: 0.9;
+    text-align: center;
+    padding: 8px 12px;
+}
+
+/* loading dots */
+.loader { display:inline-block; vertical-align: middle; }
+.loader span { display:inline-block; width:8px; height:8px; background: var(--loader-color); border-radius:50%; margin:0 3px; animation: bounce 1s infinite; }
+.loader span:nth-child(2){ animation-delay: 0.12s; }
+.loader span:nth-child(3){ animation-delay: 0.24s; }
+@keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-8px)} }
+
+/* responsive tweaks */
+@media (max-width:480px){ .app{ height: 92vh;} .bubble{ font-size:14px; } }
+</style>
+</head>
+
+<body>
+<div class="app" id="app">
+    <header>
+        <span>MCP Chat</span>
+        <button id="themeBtn">🌙</button>
+    </header>
+
+    <div class="chat" id="chat" aria-live="polite"></div>
+    <div class="mcp" id="mcpStatus">MCP idle</div>
+
+    <footer>
+        <textarea id="input" rows="2" placeholder="Type a message..."></textarea>
+        <button id="sendBtn">Send</button>
+    </footer>
+</div>
+
+<!-- Markdown renderer and sanitizer -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
+
+<script>
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+const mcpStatus = document.getElementById("mcpStatus");
+const app = document.getElementById("app");
+const sendBtn = document.getElementById("sendBtn");
+const themeBtn = document.getElementById("themeBtn");
+
+// Ensure links from rendered Markdown open in a new tab and are safe
+if (window.DOMPurify && DOMPurify.addHook) {
+    DOMPurify.addHook('afterSanitizeAttributes', function(node) {
+        if (node.tagName && node.tagName.toLowerCase() === 'a') {
+            node.setAttribute('target', '_blank');
+            node.setAttribute('rel', 'noopener noreferrer');
+        }
+    });
+}
+
+function applyTheme(theme) {
+    if (theme === 'dark') {
+        app.classList.add('dark');
+        themeBtn.textContent = '☀️';
+        themeBtn.setAttribute('aria-pressed', 'true');
+    } else {
+        app.classList.remove('dark');
+        themeBtn.textContent = '🌙';
+        themeBtn.setAttribute('aria-pressed', 'false');
+    }
+    try { localStorage.setItem('theme', theme); } catch (e) { /* ignore */ }
+}
+
+themeBtn.addEventListener('click', () => applyTheme(app.classList.contains('dark') ? 'light' : 'dark'));
+
+// Initialize theme from saved preference or system setting
+const savedTheme = localStorage.getItem('theme');
+const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+
+function addBubble(text, cls) {
+    const div = document.createElement("div");
+    div.className = `bubble ${cls}`;
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return div;
+}
+
+function createLoader() {
+    const span = document.createElement('span');
+    span.className = 'loader';
+    span.innerHTML = '<span></span><span></span><span></span>';
+    return span;
+}
+
+function setUIBusy(busy) {
+    input.disabled = busy;
+    sendBtn.disabled = busy;
+    mcpStatus.textContent = busy ? 'Thinking…' : 'MCP idle';
+}
+
+async function send() {
+    const message = input.value.trim();
+    if (!message) return;
+
+    input.value = "";
+    addBubble(message, "user");
+    const botBubble = addBubble("", "bot");
+
+    // show loader inside bot bubble until we receive a full reply
+    const loader = createLoader();
+    botBubble.appendChild(loader);
+
+    setUIBusy(true);
+
+    try {
+        const res = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+
+        if (!res.ok) throw new Error(`Server returned ${res.status}`);
+        const data = await res.json();
+
+        if (loader && loader.parentNode) loader.remove();
+
+        // Render reply as Markdown -> sanitized HTML
+        try {
+            const replyText = data.reply ?? '(no reply)';
+            if (window.marked && window.DOMPurify) {
+                const raw = marked.parse(replyText);
+                const clean = DOMPurify.sanitize(raw);
+                botBubble.innerHTML = ''; // clear
+                const md = document.createElement('div');
+                md.className = 'markdown';
+                md.innerHTML = clean;
+                botBubble.appendChild(md);
+            } else {
+                botBubble.textContent = replyText;
+            }
+        } catch (err) {
+            botBubble.textContent = data.reply ?? '(no reply)';
+            console.error('Markdown render error', err);
+        }
+        chat.scrollTop = chat.scrollHeight;
+    } catch (err) {
+        if (loader && loader.parentNode) loader.remove();
+        botBubble.textContent = 'Error: ' + (err.message || err);
+        console.error(err);
+    } finally {
+        setUIBusy(false);
+    }
+}
+
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+</script>
+</body>
+</html>

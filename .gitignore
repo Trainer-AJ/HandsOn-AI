@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment variables
+.env
+.env.*.local
+
+# IDEs and editors
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Testing & caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Packaging
+dist/
+build/
+*.egg-info/
