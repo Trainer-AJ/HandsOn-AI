@@ -165,30 +165,50 @@ header {
 }
 
 footer {
-    padding: 14px;
+    padding: 10px 14px 14px 14px;
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Input area: full-width 'bubble' with Send button at extreme right */
+.input-area {
+    display: flex;
     align-items: center;
+    gap: 10px;
+    width: 100%;
 }
 
 textarea {
     flex: 1;
     resize: none;
-    border-radius: 10px;
-    padding: 12px;
-    min-height: 46px;
+    border-radius: 999px; /* pill shape */
+    padding: 12px 18px;
+    min-height: 48px;
     background: var(--input-bg);
     color: var(--text);
     border: 1px solid var(--input-border);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.04);
 }
 
 button {
     border: none;
-    border-radius: 10px;
-    padding: 10px 16px;
+    border-radius: 12px;
+    padding: 10px 14px;
     cursor: pointer;
     background: var(--button-bg);
     color: var(--button-text);
+    min-width: 64px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Make sure textarea and send button don't wrap on small screens */
+@media (max-width:420px) {
+    .input-area { gap: 8px; }
+    textarea { padding: 10px 12px; min-height: 44px; }
+    button { padding: 8px 10px; min-width: 48px; }
 }
 
 .mcp {
@@ -197,6 +217,14 @@ button {
     text-align: center;
     padding: 8px 12px;
 }
+
+/* Token counter */
+.token-row { display:flex; align-items:center; gap:12px; padding: 6px 14px; border-top: 1px solid var(--card-border); position: sticky; bottom: 0; background: linear-gradient( rgba(0,0,0,0), rgba(0,0,0,0.02) ); z-index: 3; }
+.token-counter { font-size:12px; color:var(--muted); min-width:140px; }
+.token-bar { flex:1; height:8px; background: rgba(0,0,0,0.04); border-radius:999px; overflow:hidden; }
+.token-fill { height:100%; width:0%; background: linear-gradient(90deg,#3ddc84,#ffd54f,#ff6b6b); transition: width 160ms linear, background 160ms linear; }
+.token-note { font-size:11px; color:var(--muted); min-width:120px; text-align:right; }
+.token-exceeded { color: #ff4d4f; }
 
 /* loading dots */
 .loader { display:inline-block; vertical-align: middle; }
@@ -221,9 +249,20 @@ button {
     <div class="mcp" id="mcpStatus">MCP idle</div>
 
     <footer>
-        <textarea id="input" rows="2" placeholder="Type a message..."></textarea>
-        <button id="sendBtn">Send</button>
+        <div class="input-area">
+            <textarea id="input" rows="2" placeholder="Type a message..."></textarea>
+            <button id="sendBtn">Send</button>
+        </div>
     </footer>
+
+    <!-- Token counter placed at the very bottom of the card -->
+    <div class="token-row" aria-hidden="false" style="position:sticky; bottom:0;">
+        <div class="token-counter" id="tokenCounter" aria-live="polite">0 / 16384 tokens</div>
+        <div class="token-bar" role="progressbar" aria-valuemin="0" aria-valuemax="16384" aria-valuenow="0">
+            <div class="token-fill" id="tokenFill" style="width:0%"></div>
+        </div>
+        <div class="token-note" id="tokenNote">1 token ≈ 4 chars</div>
+    </div>
 </div>
 
 <!-- Markdown renderer and sanitizer -->
@@ -237,6 +276,46 @@ const mcpStatus = document.getElementById("mcpStatus");
 const app = document.getElementById("app");
 const sendBtn = document.getElementById("sendBtn");
 const themeBtn = document.getElementById("themeBtn");
+
+// Token counter settings
+const MAX_TOKENS = 16384;
+const TOKEN_APPROX_RATIO = 4; // approx chars per token
+const tokenCounter = document.getElementById('tokenCounter');
+const tokenFill = document.getElementById('tokenFill');
+const tokenNote = document.getElementById('tokenNote');
+
+function estimateTokens(text) {
+    if (!text) return 0;
+    return Math.ceil(text.length / TOKEN_APPROX_RATIO);
+}
+
+function updateTokenUI() {
+    const tokens = estimateTokens(input.value);
+    const pct = Math.min(100, Math.round((tokens / MAX_TOKENS) * 100));
+    if (tokenCounter) tokenCounter.textContent = `${tokens} / ${MAX_TOKENS} tokens`;
+    if (tokenFill) tokenFill.style.width = pct + '%';
+    // update ARIA for the progressbar
+    const tokenBarEl = document.querySelector('.token-bar');
+    if (tokenBarEl) tokenBarEl.setAttribute('aria-valuenow', Math.min(tokens, MAX_TOKENS));
+
+    // color feedback
+    let color = '#3ddc84';
+    if (tokens >= MAX_TOKENS) color = '#ff4d4f';
+    else if (tokens > MAX_TOKENS * 0.85) color = '#ffb74d';
+    if (tokenFill) tokenFill.style.background = `linear-gradient(90deg, ${color}, ${color})`;
+
+    if (tokenCounter) {
+        tokenCounter.classList.toggle('token-exceeded', tokens > MAX_TOKENS);
+    }
+    if (tokenNote) {
+        tokenNote.textContent = tokens > MAX_TOKENS ? 'Token limit reached. Please shorten input.' : '1 token ≈ 4 chars';
+    }
+    sendBtn.disabled = tokens > MAX_TOKENS;
+}
+
+input.addEventListener('input', updateTokenUI);
+// initialize
+updateTokenUI();
 
 // Ensure links from rendered Markdown open in a new tab and are safe
 if (window.DOMPurify && DOMPurify.addHook) {
@@ -296,7 +375,17 @@ async function send() {
     const message = input.value.trim();
     if (!message) return;
 
+    // Prevent sending if input is above token limit
+    const tokens = estimateTokens(message);
+    if (tokens > MAX_TOKENS) {
+        if (tokenNote) tokenNote.textContent = 'Token limit reached. Please shorten input.';
+        if (tokenCounter) tokenCounter.classList.add('token-exceeded');
+        return;
+    }
+
     input.value = "";
+    updateTokenUI();
+
     addBubble(message, "user");
     const botBubble = addBubble("", "bot");
 
@@ -343,6 +432,7 @@ async function send() {
         console.error(err);
     } finally {
         setUIBusy(false);
+        updateTokenUI();
     }
 }
 
